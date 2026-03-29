@@ -219,4 +219,148 @@ export default {
 ```
 
 管理员检测是通过是否有对仓库拥有push的权限，同时由于将client secret和bot token储存于前端并不安全，为此选择了存在workers里  
-主要架构是通过将打包好的文件上传至telegram做临时存储，并带上下载链接供给审核  
+
+登录实现方式：  
+1. 回调页 (auth-callback.html) 抓 code 丢给 Worker
+2. Worker (api/exchange-token) 藏好 Secret 换 Token
+3. 本地 (auth.js) 存 Token 并定时 7d 清理
+
+### 1.2.1 上传逻辑的具体实现  
+
+获取到了token后，在提交页面内，用户将投影，预览图，简介，标签输入完毕后，打包成一个zip压缩包输送到tg群内部。并通过workers生成一个唯一的下载链接  
+而为了防止出现file0,file1.zip这样的情况，workers会中途拦截，并更名zip压缩包的名称  
+最后，则是通过workers将固定模板+下载链接+用户token自动提交issue  
+
+> note: archive.html的登录状态是跟upload.html的上传状态是完全同步的
+
+## 1.3 档案馆的标签，本地设备我的收藏，繁简转换  
+
+核心代码文件：
+```markdown
+.root
+    > scripts
+        > logic.js
+        > ui.js
+        > main.js
+        > config.js
+    > Traditional-Simplefild （我知道我打错了Simplified但是我懒得改）
+        > STCharacters.txt
+    > archive.html
+```
+
+**标签的逻辑：**  
+1. 加载config.js的硬编码标签
+
+    ```js
+    // config.js
+    export const TAG_CONFIG = {
+        "非编码存储科技": {
+            "全物品单片": ["8箱单片", "10箱单片", "其他单片"],
+            "大宗仓库": ["分类打包大宗", "盒分大宗", "四边形大宗"],
+            "不可堆叠相关": ["不可堆叠分离", "不可堆叠分类"],
+            "多物品相关": ["多物品分类 (MIS)", "多种类潜影盒分类 (MBS)"]
+        },
+        "潜影盒处理": {
+            "潜影盒打包机": ["分类打包", "混杂打包", "自适应打包", "精密打包", "缓存打包", "可访问打包", "比例打包", "堆分打包"],
+            "潜影盒拆包机": ["漏斗拆包", "矿车拆包 (Yeeter)", "烧包机"],
+            "潜影盒展示": ["无残留展示", "自出盒展示", "常用物品展示", "可反悔展示", "上行展示", "精密展示", "细雪展示", "灵魂沙展示", "堆肥桶展示"],
+            "潜影盒分类相关": ["潜影盒分类", "自适应潜影盒分类 (SVAR)", "车头及拐弯设计 (Keygen & U-turn)"],
+            "分盒器相关": ["潜影盒分盒器", "理想分盒器 (矿车)"],
+            "合并器相关": ["潜影盒合并器", "不满盒临时存储", "分组器 (Grouper)", "配对优化器"],
+            "潜影盒填充度分类": [],
+            "空盒仓库": []
+        },
+        "编码存储科技": {
+            "编码全物品单片": ["常规编码单片", "矩阵编码单片", "高速编码单片", "其他编码单片"],
+            "编码大宗仓库": ["编码大宗", "编码四边形大宗", "远程大宗"],
+            "逻辑/传输": ["逻辑电路", "移位寄存器", "转码器"],
+            "编码器": ["二进制", "其他编码器"],
+            "解码器": ["二进制", "十进制", "十六进制", "强模 (HSS/OSS)", "水道速", "方块事件深度(BED)"],
+            "其他组件": []
+        },
+        "其他杂物": {
+            "仓库成品": ["全物品仓库", "多物品仓库", "编码全物品"],
+            "进阶组件": ["潜影盒UI", "潜影盒硬盘", "动态大宗"],
+            "整流器": ["盒流整流器", "堆分整流器", "矿车整流器"],
+            "分流器/黑白名单": [],
+            "堆分离/分类": [],
+            "无实体输入": [],
+            "水道相关": [],
+            "地狱门加载器": []
+        },
+        "生产/合成": ["合成站", "合成器相关"],
+        "版本": ["1.21.x", "1.20.x", "1.19+", "1.17+", "1.16+"],
+    };
+    export const CATEGORIES = Object.keys(TAG_CONFIG);
+    ```  
+
+2. logic.js处理标签部分的加载
+3. main.js获取到后，转发给前端html
+
+**本地我的收藏逻辑：**  
+1. 监听前端
+2. 如果点击了前端html的`archive-card`则录入localstorage储存
+3. 如果前端引用则从localstorage加载
+
+**繁简转换逻辑：**
+- 通过STcharacters字典进行转换，懒得写了自己看代码吗
+```js
+// 解析字典
+const dictText = await dictRes.text();
+
+// 确保定义了变量
+const fs = [];
+const ft = [];
+
+dictText.split(/\r?\n/).forEach(line => {
+    if (!line || line.startsWith('#')) return;
+    const parts = line.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        parts.slice(1).forEach(t => {
+            fs.push(parts[0]);
+            ft.push(t);
+        });
+    }
+});
+
+this.dictSArray = Object.freeze(fs);
+this.dictTArray = Object.freeze(ft);
+```
+
+### 1.3.1 搜索框逻辑+?sub-xxx搜索逻辑
+- 懒得写了看代码
+```js
+if (query.includes('sub-')) {
+    return data.filter(item =>
+        item.sub_id && item.sub_id.toLowerCase().includes(query)
+    );
+}
+```
+```js
+// 搜索框逻辑
+if (!query) return true;
+
+// #前缀模式
+if (query.startsWith('#')) {
+    const tagQuery = query.slice(1);
+    if (!tagQuery) return true;
+    return item.tags && item.tags.some(t => t.toLowerCase().includes(tagQuery));
+}
+
+// 常规模糊匹配
+const normQuery = normalizeFn ? normalizeFn(query) : query;
+const normName = normalizeFn ? normalizeFn(item.name || "") : (item.name || "").toLowerCase();
+const normAuthor = normalizeFn ? normalizeFn(item.author || "") : (item.author || "").toLowerCase();
+const normDesc = normalizeFn ? normalizeFn(item.description || "") : (item.description || "").toLowerCase();
+
+const matchText = normName.includes(normQuery) ||
+    normAuthor.includes(normQuery) ||
+    normDesc.includes(normQuery);
+
+const matchTags = item.tags && item.tags.some(t => t.toLowerCase().includes(query));
+
+return matchText || matchTags;
+});
+```
+
+总而言之，实际上如果你想添加一个功能，只需修改`main.js`即可，而如果涉及到标签部分则需修改`logic.js`。ui则是`ui.js`。
