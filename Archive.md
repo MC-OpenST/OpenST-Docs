@@ -304,31 +304,34 @@ export default {
 
 **繁简转换逻辑：**
 - 通过STcharacters字典进行转换，懒得写了自己看代码吗
-```js
-// 解析字典
-const dictText = await dictRes.text();
+   ```js
+   // 解析字典
+   const dictText = await dictRes.text();
+   
+   // 确保定义了变量
+   const fs = [];
+   const ft = [];
+   
+   dictText.split(/\r?\n/).forEach(line => {
+       if (!line || line.startsWith('#')) return;
+       const parts = line.trim().split(/\s+/);
+       if (parts.length >= 2) {
+           parts.slice(1).forEach(t => {
+               fs.push(parts[0]);
+               ft.push(t);
+           });
+       }
+   });
+   
+   this.dictSArray = Object.freeze(fs);
+   this.dictTArray = Object.freeze(ft);
+   ```
 
-// 确保定义了变量
-const fs = [];
-const ft = [];
-
-dictText.split(/\r?\n/).forEach(line => {
-    if (!line || line.startsWith('#')) return;
-    const parts = line.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        parts.slice(1).forEach(t => {
-            fs.push(parts[0]);
-            ft.push(t);
-        });
-    }
-});
-
-this.dictSArray = Object.freeze(fs);
-this.dictTArray = Object.freeze(ft);
-```
 
 ### 1.3.1 搜索框逻辑+?sub-xxx搜索逻辑
-- 懒得写了看代码
+- 懒得写了看代码  
+
+
 ```js
 if (query.includes('sub-')) {
     return data.filter(item =>
@@ -336,6 +339,8 @@ if (query.includes('sub-')) {
     );
 }
 ```
+
+
 ```js
 // 搜索框逻辑
 if (!query) return true;
