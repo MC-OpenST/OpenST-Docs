@@ -15,6 +15,9 @@
         loadSidebar: true,
         subMaxLevel: 3,
         auto2top: true,
+        alias: {
+            '/.*/_sidebar.md': '/_sidebar.md' // 建议加上别名，防止子目录找不到侧边栏
+        },
         // 搜索配置
         search: {
             placeholder: '搜索技术细节...',
